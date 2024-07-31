@@ -61,6 +61,28 @@ pr.confProDy(verbosity="none")
 log = get_pylogger(__name__)
 
 
+def upload_model_to_huggingface(model, repo_name, token):
+    # Authenticate to Hugging Face
+    api = HfApi()
+    who = whoami(token)
+    username = who["name"]
+
+    # Create repository if it doesn't exist
+    repo_url = create_repo(repo_name, token=token, private=True)
+    log.info(f"Repository {repo_name} created at {repo_url}")
+
+    # Initialize repository
+    repo = Repository(local_dir=repo_name, clone_from=repo_url, use_auth_token=token)
+    
+    # Save the model
+    model_save_path = os.path.join(repo_name, "model.pt")
+    torch.save(model.state_dict(), model_save_path)
+    
+    # Push to Hugging Face Hub
+    repo.push_to_hub(commit_message="Initial commit", auto_lfs_prune=True)
+    log.info(f"Model uploaded to Hugging Face Hub at {repo_url}")
+
+
 @utils.task_wrapper
 def sample(cfg: DictConfig) -> Tuple[dict, dict]:
     """Performs sampling using a given checkpoint.
@@ -121,6 +143,17 @@ def sample(cfg: DictConfig) -> Tuple[dict, dict]:
         path_cfg=cfg.paths
     )
     model = model.to(device)
+    
+    # Attach the model to the trainer
+    trainer.model = model
+    
+    # Upload model to Hugging Face Hub
+    print(">>> uploading model")
+    hf_repo_name = "minwoosun/gcdm" 
+    hf_token = "" # DO NOT PUSH
+    model.upload_to_huggingface(repo_name=hf_repo_name, token=hf_token)
+    #upload_model_to_huggingface(model, hf_repo_name hf_token)
+    print(">>> loaded model")
 
     # ensure valid bond lengths have been added to each dataset's metadata collection (i.e., `model.dataset_info`)
     if any([

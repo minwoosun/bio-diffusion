@@ -19,6 +19,7 @@ from torch_geometric.data import Batch
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 from omegaconf import DictConfig
 from torch_scatter import scatter
+from huggingface_hub import PyTorchModelHubMixin
 
 import src.datamodules.components.edm.utils as qm9utils
 
@@ -43,7 +44,7 @@ patch_typeguard()  # use before @typechecked
 log = get_pylogger(__name__)
 
 
-class QM9MoleculeGenerationDDPM(LightningModule):
+class QM9MoleculeGenerationDDPM(LightningModule, PyTorchModelHubMixin):
     """LightningModule for QM9 small molecule generation using a DDPM.
 
     This LightningModule organizes the PyTorch code into 9 sections:
@@ -1319,6 +1320,10 @@ class QM9MoleculeGenerationDDPM(LightningModule):
                 with open(fit_end_indicator_filepath, "w") as f:
                     f.write("`on_fit_end` has been called.")
         return super().on_fit_end()
+    
+    def upload_to_huggingface(self, repo_name: str, organization: str = None, token: str = None):
+        # if self.trainer.is_global_zero:  # Ensure that only the main process pushes the model
+        self.save_pretrained(repo_name, organization=organization, use_auth_token=token)
 
 
 if __name__ == "__main__":
